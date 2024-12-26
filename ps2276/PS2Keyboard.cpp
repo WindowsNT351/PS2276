@@ -1,6 +1,7 @@
 #include "PS2Keyboard.hpp"
 
 bool get_led_update=0;
+bool get_scan=0;
 
 namespace esp32_ps2dev {
 
@@ -76,15 +77,16 @@ int PS2Keyboard::reply_to_host(uint8_t host_cmd) {
       break;
     case Command::GET_DEVICE_ID:  // get device id
       PS2DEV_LOGD("PS2Keyboard::reply_to_host: Get device id command received");
-      printf("resv kid\n");
+      //printf("resv kid\n");
       ack();
       while (write(0xAB) != 0) delay(1);  // ensure ID gets writed, some hosts may be sensitive
       while (write(0x90) != 0) delay(1);  // this is critical for combined ports (they decide mouse/kb on this) def:83
-      printf("done kid\n");
+      //printf("done kid\n");
       break;
     case Command::SET_SCAN_CODE_SET:  // set scan code set
       PS2DEV_LOGD("PS2Keyboard::reply_to_host: Set scan code set command received");
-      printf("resv scan\n");
+      get_scan=1;
+      //printf("resv scan\n");
       ack();
       /*if (!read(&val)) ack();  // do nothing with the rate*/
       if (!read(&val))
@@ -93,7 +95,7 @@ int PS2Keyboard::reply_to_host(uint8_t host_cmd) {
         while (write(0xFA) != 0) delay(1);
         while (write(0xFA) != 0) delay(1);
       }
-      printf("done scan\n");
+      //printf("done scan\n");
       break;
     case Command::ECHO:  // echo
       PS2DEV_LOGD("PS2Keyboard::reply_to_host: Echo command received");
@@ -567,6 +569,26 @@ void PS2Keyboard::_load_internal_state_from_nvs() {
     PS2DEV_LOGE("PS2Keyboard::_load_internal_state_from_nvs: nvs_get_u8 failed for ledCapsLock");
     return;
   }
+}
+
+bool PS2Keyboard::availableUpdLed()
+{
+  if(get_led_update==1)
+  {
+    get_led_update=0;
+    return 1;
+  }
+  return 0;
+}
+
+bool PS2Keyboard::availableGetScan()
+{
+  if(get_scan==1)
+  {
+    get_scan=0;
+    return 1;
+  }
+  return 0;
 }
 
 }  // namespace esp32_ps2dev

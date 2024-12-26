@@ -1,4 +1,17 @@
+/*
+PS2276 - PS/2 keyboard to IBM 5576-002 adapter
+----------------------------------------------
+Copyright 351Workshop 2024
+for ESP32 & P.N.070401
+Built on Arduino IDE 2.3.2
+----------------------------------------------
+Ver. 200B103
+Update 20241226
+*/
+
+
 #include <Arduino.h>
+#include "driver/ledc.h"
 
 #include "PS2Keyboard.hpp"
 #include "_PS2Kbd.h"
@@ -23,6 +36,8 @@ const int pinBeep = 21;//beeper
 PS2Kbd keyboard2(DATA_PIN2 ,CLK_PIN2);
 esp32_ps2dev::PS2Keyboard keyboard55(CLK_PIN55, DATA_PIN55);
 
+int is8Ah=0;
+int doBeep=1;
 
 void setup() 
 { 
@@ -34,7 +49,9 @@ void setup()
   pinMode(pinSw2,INPUT);
   pinMode(pinSw3,INPUT);
   pinMode(pinSw4,INPUT);
-  pinMode(pinBeep,OUTPUT);
+  //pinMode(pinBeep,OUTPUT);
+  ledcAttach(pinBeep,5000, 8);
+
   delay(100);
   keyboard55.begin(); 
   //Serial.begin(115200);
@@ -43,30 +60,13 @@ void setup()
 
 
 
-std::vector<uint8_t> keyMapper(char *scanCode)
+/*std::vector<uint8_t> keyMapper(char *scanCode)
 {
   std::vector<uint8_t>sendBuf;
   sendBuf.clear();
   sendBuf.shrink_to_fit();
   sendBuf.resize(0);
   //std::vector<uint8_t>().swap(sendBuf);
-  /*unsigned char ksd0E[2]={0x0e,0x00};
-  unsigned char ksd54[2]={0x54,0x00};
-  unsigned char ksd5B[2]={0x5b,0x00};
-  unsigned char ksdE01F[3]={0xe0,0x1F,0x00};
-  unsigned char ksdE027[3]={0xe0,0x27,0x00};
-  unsigned char ksdE02F[3]={0xe0,0x2F,0x00};
-  unsigned char ksd77[2]={0x77,0x00};
-  unsigned char ksd7C[3]={0xe0,0x41,0x00};
-
-  unsigned char ksu0E[3]={0xF0,0x0e,0x00};
-  unsigned char ksu54[3]={0xF0,0x54,0x00};
-  unsigned char ksu5B[3]={0xF0,0x5b,0x00};
-  unsigned char ksuE01F[4]={0xe0,0xF0,0x1F,0x00};
-  unsigned char ksuE027[4]={0xe0,0xF0,0x27,0x00};
-  unsigned char ksuE02F[4]={0xe0,0xF0,0x2F,0x00};
-  unsigned char ksu77[3]={0xF0,0x77,0x00};
-  unsigned char ksu7C[4]={0xe0,0xF0,0x41,0x00};*/
 
   char ksd0E[2]={0x0e,0x00};
   char ksd54[2]={0x54,0x00};
@@ -165,14 +165,25 @@ std::vector<uint8_t> keyMapper(char *scanCode)
     for(int i=0;scanCode[i]!=0;i++)
     {
       if(/*scanCode[i]!=0xED&&scanCode[i]!=0xF1&&scanCode[i]!=0xF2&&scanCode[i]!=0xF3&&scanCode[i]!=0xF3&&scanCode[i]!=0xF4&&scanCode[i]!=0xF5&&
-      scanCode[i]!=0xF6&&scanCode[i]!=0xF7&&scanCode[i]!=0xF8&&scanCode[i]!=0xF9&&scanCode[i]!=0xFA&&scanCode[i]!=0xFB&&scanCode[i]!=0xFC&&scanCode[i]!=0xFD&&*/scanCode[i]!=0xFE&&scanCode[i]!=0xFF)
+      scanCode[i]!=0xF6&&scanCode[i]!=0xF7&&scanCode[i]!=0xF8&&scanCode[i]!=0xF9&&scanCode[i]!=0xFA&&scanCode[i]!=0xFB&&scanCode[i]!=0xFC&&scanCode[i]!=0xFD&&*scanCode[i]!=0xFE&&scanCode[i]!=0xFF)
         sendBuf.push_back(scanCode[i]);
     }
   }
   return sendBuf;
+}*/
+
+std::vector<uint8_t> keyMapper(char *scanCode)
+{
+  int i;
+  std::vector<uint8_t>sendBuf;
+  for(int i=0;scanCode[i]!=0;i++)
+  {
+    if(/*scanCode[i]!=0xED&&scanCode[i]!=0xF1&&scanCode[i]!=0xF2&&scanCode[i]!=0xF3&&scanCode[i]!=0xF3&&scanCode[i]!=0xF4&&scanCode[i]!=0xF5&&
+    scanCode[i]!=0xF6&&scanCode[i]!=0xF7&&scanCode[i]!=0xF8&&scanCode[i]!=0xF9&&scanCode[i]!=0xFA&&scanCode[i]!=0xFB&&scanCode[i]!=0xFC&&scanCode[i]!=0xFD&&*/scanCode[i]!=0xFE&&scanCode[i]!=0xFF)
+      sendBuf.push_back(scanCode[i]);
+  }
+  return sendBuf;
 }
-
-
 
 
 
@@ -257,9 +268,10 @@ const char keyMapper8A_NonBreak[256]=
 0   ,0   ,0   ,0   ,0   ,0   ,0   ,0   ,0   ,0   ,0   ,0   ,0   ,0   ,0   ,0   ,
 };
 
-char keyMapper8A(char *scanCode)
+std::vector<uint8_t> keyMapper8A(char *scanCode)
 {
-  char lastTemp=0;
+  char temp=0;
+  std::vector<uint8_t>sendBuf;
 
   //printf("%x %d     %x\n",scanCode[0],scanCode[0],keyMapper8A_NonMake[(int)scanCode[0]]);
   if(scanCode[0]==0xE0)//E0 prefix
@@ -268,69 +280,90 @@ char keyMapper8A(char *scanCode)
     if(strlen(scanCode)==3)//E0 prefixed break
     {
   //    printf("e0 pre bre\n");
-      lastTemp=keyMapper8A_E0Break[(int)scanCode[2]];
+      temp=keyMapper8A_E0Break[(int)scanCode[2]];
     }
     else//E0 pre make
     {
   //    printf("e0 pre mke\n");
-      lastTemp=keyMapper8A_E0Make[(int)scanCode[1]];
+      temp=keyMapper8A_E0Make[(int)scanCode[1]];
     }
   }
   else if(scanCode[0]==0xF0)//non break
   {
   //  printf("non pre bre\n");
-    lastTemp=keyMapper8A_NonBreak[(int)scanCode[1]];
+    temp=keyMapper8A_NonBreak[(int)scanCode[1]];
   //  printf("non pre bre d\n");
   }
   else//non make
   {
   //  printf("non pre mke\n");
-    lastTemp=keyMapper8A_NonMake[(int)scanCode[0]];
+    temp=keyMapper8A_NonMake[(int)scanCode[0]];
   //  printf("non pre mke d\n");
   }
   //printf("done\n");
-  return lastTemp;
+  sendBuf.push_back(temp);
+  return sendBuf;
 }
 
 void loop() 
 {
   char scanBuf[25]={0};
   int scanBufAddr=0;
-  //uint8_t ledBuf=0;
+  int isKeyUp=0;
   int i=0;
   char keyMapped8A=0;
   std::vector<uint8_t>sendBuf;
 
   while(1)
   {
+    if(digitalRead(pinSw2)==0)
+      doBeep=0;
+    else
+      doBeep=1;
+
+    if(digitalRead(pinSw1)==0)
+    {
+      is8Ah=1;
+      digitalWrite(pinLed1,1);
+    }
+    else
+    {
+      is8Ah=0;
+      digitalWrite(pinLed1,0);
+    }
+
+
     if (keyboard2.availableRaw()) 
     {
-      if(digitalRead(pinSw2)!=0)
-        digitalWrite(pinBeep,1);
-
       scanBuf[scanBufAddr++]=keyboard2.readRaw();
       printf("[loop] Get scancode 0x%x from PS2.",scanBuf[scanBufAddr-1]);
       if(scanBuf[scanBufAddr-1]==0xE0)
       {
         printf("Get 0xE0,needLoop.\n");
+        //loopNeedConti=1;
         continue;
       }
       else if(scanBuf[scanBufAddr-1]==0xF0)
       {
         printf("Get 0xF0,needLoop.\n");
+        isKeyUp=1;
+        //digitalWrite(pinBeep,0);
+        ledcWrite(pinBeep, 0);
         continue;
       }
       else
-      {
+      { 
+        if(doBeep==1&&isKeyUp==0)
+          ledcWrite(pinBeep, 255);
+          //digitalWrite(pinBeep,1);
+        isKeyUp=0;
         printf("\n");
       }
       scanBuf[scanBufAddr]=0;
       scanBufAddr=0;
 
-      if(digitalRead(pinSw1)==0)
+      /*if(is8Ah==1)
       {
-        digitalWrite(pinLed1,1);
-
         keyMapped8A=keyMapper8A(scanBuf);
         if(keyMapped8A!=0)
         {
@@ -346,8 +379,6 @@ void loop()
       }
       else
       {
-        digitalWrite(pinLed1,0);
-
         sendBuf=keyMapper(scanBuf);
         printf("[loop] Send");
         for(i=0;i<sendBuf.size();i++)
@@ -356,12 +387,23 @@ void loop()
         }
         printf(" to PS55.\n");
         keyboard55.send_scancode(sendBuf);
+      }*/
+      if(is8Ah==1)
+        sendBuf=keyMapper8A(scanBuf);
+      else
+        sendBuf=keyMapper(scanBuf);
+      printf("[loop] Send");
+      for(i=0;i<sendBuf.size();i++)
+      {
+        printf(" 0x%x",sendBuf[i]);
       }
+      printf(" to PS55.\n");
+      keyboard55.send_scancode(sendBuf);
+
       delay(10);
-      digitalWrite(pinBeep,0);
     }
 
-    if(get_led_update)
+    if(keyboard55.availableUpdLed())
     {
       //delay(500);
       /*get_led_update=0;
@@ -377,12 +419,17 @@ void loop()
       //keyboard2.updLEDs=1;
       //keyboard2.tryUpdateLEDs();
 
-      get_led_update=0;
+      //get_led_update=0;
       printf("[loop] Get Num%d,Caps%d,Scroll%d.\n",keyboard55.is_num_lock_led_on(),keyboard55.is_caps_lock_led_on(),keyboard55.is_scroll_lock_led_on());
 
       digitalWrite(pinLed2,keyboard55.is_num_lock_led_on());
       digitalWrite(pinLed3,keyboard55.is_caps_lock_led_on());
       digitalWrite(pinLed4,keyboard55.is_scroll_lock_led_on());
+    }
+
+    if(keyboard55.availableGetScan())
+    {
+      is8Ah=1;
     }
   }
 }

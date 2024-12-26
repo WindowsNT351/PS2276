@@ -8,7 +8,7 @@
 #include "PS2Dev.hpp"
 #include "ScanCodeSet2.h"
 
-extern bool get_led_update;
+//extern bool get_led_update;
 
 namespace esp32_ps2dev {
 
@@ -41,6 +41,8 @@ class PS2Keyboard : public PS2dev {
   void type(std::initializer_list<scancodes::Key> keys);
   void type(const char* str);
   void send_scancode(const std::vector<uint8_t>& scancode);
+  bool availableUpdLed();
+  bool availableGetScan();
 
  protected:
   void _save_internal_state_to_nvs();
